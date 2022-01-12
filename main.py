@@ -8,7 +8,7 @@ from kivy.vector import Vector
 from kivy.clock import Clock
 from kivy.config import Config
 from enum import Enum
-import math
+import random
 
 FIELD_SIZE_X = 15
 FIELD_SIZE_Y = 11
@@ -67,7 +67,8 @@ class PongGame(Widget):
         self.agent.size = (PADDLE_SIZE_X * SCALE, PADDLE_SIZE_Y * SCALE)
         self.player.size = (PADDLE_SIZE_X * SCALE, PADDLE_SIZE_Y * SCALE)
 
-        self.state = (6, 3, (10, 3), BallDirection.L_D)
+        self.start_state = (2, 2, (7, 9), BallDirection.R_D)
+        self.state = self.start_state
         self.initialize_utilities()
 
         print('initialized utilities')
@@ -95,8 +96,8 @@ class PongGame(Widget):
                 ((abs(P_B_x - PLAYER_POSITION_X) <= (BALL_SIZE_X / 2) + (PADDLE_SIZE_X / 2)) and  
                  (abs(P_B_y - P_P) <= (BALL_SIZE_Y / 2) + (PADDLE_SIZE_Y / 2))))
 
-    def get_next_state(self, s, a):
-        if s == None:
+    def get_next_state(self, s, a_a, a_p):
+        if s == None or a_a == None:
             return None
         
         P_A, P_P, P_B, D_B = s
@@ -105,18 +106,37 @@ class PongGame(Widget):
         if P_B_x == 0 or P_B_x == FIELD_SIZE_X:
             return None
 
-        P_A_next = P_A
-        if a == Action.DOWN:
-            if P_A > 0:
-                P_A_next =  P_A - 1
-        elif a == Action.UP:
-            if P_A < FIELD_SIZE_Y:
-                P_A_next = P_A + 1
+        P_A_next = self.move_paddle(P_A, a_a)
+        P_P_next = self.move_paddle(P_P, a_p)
 
         P_B_next, D_B_next = self.move_ball(P_A_next, P_P, P_B, D_B)
 
-        next_state = (P_A_next, P_P, P_B_next, D_B_next)
+        next_state = (P_A_next, P_P_next, P_B_next, D_B_next)
         return next_state
+
+    def get_next_states(self, s, a_a):
+        next_states = []
+
+        for i in range(3):
+            a_p = Action(i)
+            next_state = self.get_next_state(s, a_a, a_p)
+            if next_state == None:
+                return []
+            else:
+                next_states.append((1 / 3, next_state))
+
+        return next_states
+
+    def move_paddle(self, P, a):
+        P_next = P
+        if a == Action.DOWN:
+            if P > 0:
+                P_next =  P - 1
+        elif a == Action.UP:
+            if P < FIELD_SIZE_Y:
+                P_next = P + 1
+        
+        return P_next
 
     def move_ball(self, P_A, P_P, P_B, D_B):
         P_B_x, P_B_y = P_B
@@ -155,28 +175,33 @@ class PongGame(Widget):
         best_utility = None
 
         for a in range(3):
-            next_state = self.get_next_state(s, Action(a))
-            if next_state != None:
-                utility = self.utilities[next_state]
-                if best_action == None or utility > best_utility:
+            next_states = self.get_next_states(s, Action(a))
+            if len(next_states) != 0:
+                utility = 0.0
+                for (p, next_state) in next_states:
+                    utility = utility + p * self.utilities[next_state]
+                if best_action == None or utility >= best_utility:
                     best_action = Action(a)
                     best_utility = utility
 
         return best_action
 
     def update(self, dt):
-        agent_action = self.get_next_action(self.state)
-        # agent_action = Action.IDLE
+        if self.state != None:
+            P_A, P_P, P_B, _ = self.state
+            P_B_x, P_B_y = P_B
 
-        if agent_action != None:
-            self.state = self.get_next_state(self.state, agent_action)
-            if self.state != None:
-                P_A, P_P, P_B, _ = self.state
-                ball_pos_x, ball_pos_y = P_B
+            self.ball.pos = ((P_B_x - int(BALL_SIZE_X / 2)) * SCALE, (P_B_y - int(BALL_SIZE_Y / 2)) * SCALE)
+            self.agent.pos = (AGENT_POSITION_X * SCALE, (P_A - int(PADDLE_SIZE_Y / 2)) * SCALE)
+            self.player.pos = (PLAYER_POSITION_X * SCALE, (P_P - int(PADDLE_SIZE_Y / 2)) * SCALE)
 
-                self.ball.pos = ((ball_pos_x - int(BALL_SIZE_X / 2)) * SCALE, (ball_pos_y - int(BALL_SIZE_Y / 2)) * SCALE)
-                self.agent.pos = (AGENT_POSITION_X * SCALE, (P_A - int(PADDLE_SIZE_Y / 2)) * SCALE)
-                self.player.pos = (PLAYER_POSITION_X * SCALE, (P_P - int(PADDLE_SIZE_Y / 2)) * SCALE)
+            agent_action = self.get_next_action(self.state)
+            n = random.randint(0, 2)
+            player_action = Action(n)
+
+            self.state = self.get_next_state(self.state, agent_action, player_action)
+        else:
+            self.state = self.start_state
         
         print(self.state)
 
@@ -186,6 +211,8 @@ class PongGame(Widget):
 
         if P_B_x == 0:
             return -1
+        elif P_B_x == FIELD_SIZE_X:
+            return 1
 
         return 0
 
@@ -194,12 +221,14 @@ class PongGame(Widget):
             utilities = []
             for a in range(3):
                 utility = 0.0
-                next_state = self.get_next_state(s, Action(a))
+                next_states = self.get_next_states(s, Action(a))
 
-                if next_state == None:
+                if len(next_states) == 0:
                     utilities.append(self.reward(s))
                 else:
-                    utility = self.reward(next_state) + g * self.utilities[next_state]
+                    utility = 0.0
+                    for p, next_state in next_states:
+                        utility = utility + p * (self.reward(next_state) + g * self.utilities[next_state])
                     utilities.append(utility)
 
             self.utilities[s] = max(utilities)
