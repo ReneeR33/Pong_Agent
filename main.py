@@ -20,13 +20,12 @@ PADDLE_SIZE_X = 1
 PADDLE_SIZE_Y = 4
 
 AGENT_POSITION_X = - (int(PADDLE_SIZE_X / 2))
-BALL_POSITION_Y = 10
 
 SCALE = 32
 
 Config.set('graphics', 'resizable', True)
 Config.set('graphics', 'width', str(FIELD_SIZE_X * SCALE))
-Config.set('graphics', 'height', str(FIELD_SIZE_Y * SCALE))
+Config.set('graphics', 'height', str(FIELD_SIZE_Y * SCALE + 1))
 
 from kivy.core.window import Window
 
@@ -34,6 +33,16 @@ class Action(Enum):
     UP = 0
     DOWN = 1
     IDLE = 2
+
+class BallDirection(Enum):
+    L_U = 0
+    L_D = 1
+    R_U = 2
+    R_D = 3
+
+class Surface(Enum):
+    VERTICAL = 0
+    HORIZONTAL = 1
 
 class PongPaddle(Widget):
     score = NumericProperty(0)
@@ -56,7 +65,7 @@ class PongGame(Widget):
         self.ball.size = (BALL_SIZE_X * SCALE, BALL_SIZE_Y * SCALE)
         self.agent.size = (PADDLE_SIZE_X * SCALE, PADDLE_SIZE_Y * SCALE)
 
-        self.state = (0, (15, BALL_POSITION_Y))
+        self.state = (1, (10, 3), BallDirection.L_U)
         self.initialize_utilities()
 
         print('initialized utilities')
@@ -64,7 +73,7 @@ class PongGame(Widget):
 
         print('starting value iteration')
         for i in range(50):
-           self.value_iteration(0.8)
+            self.value_iteration(0.8)
         print('value iteration done')
 
     def initialize_utilities(self):
@@ -72,7 +81,9 @@ class PongGame(Widget):
 
         for P_A in range(FIELD_SIZE_Y + 1):
             for P_B_x in range(FIELD_SIZE_X + 1):
-                self.utilities[(P_A, (P_B_x, BALL_POSITION_Y))] = 0.0
+                for P_B_y in range(FIELD_SIZE_Y + 1):
+                    for D_B in range(4):
+                        self.utilities[(P_A, (P_B_x, P_B_y), BallDirection(D_B))] = 0.0
 
     def collides(self, P_A, P_B):
         P_B_x, P_B_y = P_B
@@ -83,10 +94,10 @@ class PongGame(Widget):
         if s == None:
             return None
         
-        P_A, P_B = s
+        P_A, P_B, D_B = s
         P_B_x, P_B_y = P_B
 
-        if P_B_x == 0 or self.collides(P_A, P_B):
+        if P_B_x == 0 or P_B_x == FIELD_SIZE_X or self.collides(P_A, P_B):
             return None
 
         P_A_next = P_A
@@ -97,9 +108,31 @@ class PongGame(Widget):
             if P_A < FIELD_SIZE_Y:
                 P_A_next = P_A + 1
 
-        P_B_x_next = P_B_x - 1
+        P_B_x_next = P_B_x
+        P_B_y_next = P_B_y
 
-        next_state = (P_A_next, (P_B_x_next, P_B_y))
+        if D_B == BallDirection.L_D:
+            P_B_y_next = P_B_y - 1
+            P_B_x_next = P_B_x - 1
+        elif D_B == BallDirection.L_U:
+            P_B_y_next = P_B_y + 1
+            P_B_x_next = P_B_x - 1
+        elif D_B == BallDirection.R_D:
+            P_B_y_next = P_B_y - 1
+            P_B_x_next = P_B_x + 1
+        else:
+            P_B_y_next = P_B_y + 1
+            P_B_x_next = P_B_x + 1
+
+        D_B_next = D_B
+        if P_B_y_next < 0 or P_B_y_next > FIELD_SIZE_Y:
+            D_B_next = self.bounce_ball(D_B, Surface.HORIZONTAL)
+            if P_B_y_next < 0:
+                P_B_y_next = 1
+            else:
+                P_B_y_next = FIELD_SIZE_Y - 1
+
+        next_state = (P_A_next, (P_B_x_next, P_B_y_next), D_B_next)
         return next_state
 
     def get_next_action(self, s):
@@ -118,19 +151,20 @@ class PongGame(Widget):
 
     def update(self, dt):
         agent_action = self.get_next_action(self.state)
+        # agent_action = Action.IDLE
 
         if agent_action != None:
             self.state = self.get_next_state(self.state, agent_action)
-            
-            P_A, P_B = self.state
-            ball_pos_x, ball_pos_y = P_B
+            if self.state != None:
+                P_A, P_B, _ = self.state
+                ball_pos_x, ball_pos_y = P_B
 
-            self.ball.pos = ((ball_pos_x - int(BALL_SIZE_X / 2)) * SCALE, (ball_pos_y - int(BALL_SIZE_Y / 2)) * SCALE)
-            self.agent.pos = (AGENT_POSITION_X * SCALE, (P_A - int(PADDLE_SIZE_Y / 2)) * SCALE)
+                self.ball.pos = ((ball_pos_x - int(BALL_SIZE_X / 2)) * SCALE, (ball_pos_y - int(BALL_SIZE_Y / 2)) * SCALE)
+                self.agent.pos = (AGENT_POSITION_X * SCALE, (P_A - int(PADDLE_SIZE_Y / 2)) * SCALE)
 
     def reward(self, s):
-        P_A, P_B = s
-        P_B_x, P_B_y = P_B
+        _, P_B, _ = s
+        P_B_x, _ = P_B
 
         if P_B_x == 0:
             return -1
@@ -151,6 +185,30 @@ class PongGame(Widget):
                     utilities.append(utility)
 
             self.utilities[s] = max(utilities)
+
+    def bounce_ball(self, D_B, surface):
+        D_B_next = D_B
+
+        if surface == Surface.VERTICAL:
+            if D_B == BallDirection.L_D:
+                return BallDirection.R_D
+            elif D_B == BallDirection.R_D:
+                return BallDirection.L_D
+            elif D_B == BallDirection.L_U:
+                return BallDirection.R_U
+            else:
+                return BallDirection.L_U 
+        elif surface == Surface.HORIZONTAL:
+            if D_B == BallDirection.L_D:
+                return BallDirection.L_U
+            elif D_B == BallDirection.L_U:
+                return BallDirection.L_D
+            elif D_B == BallDirection.R_D:
+                return BallDirection.R_U
+            else:
+                return BallDirection.R_D
+
+        return D_B_next
  
 class PongApp(App):
     def build(self):
