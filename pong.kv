@@ -1,0 +1,28 @@
+#:kivy 1.0.9
+
+<PongBall>:
+    size: 1, 1
+    canvas:
+        Rectangle:
+            pos: self.pos
+            size: self.size          
+
+<PongPaddle>:
+    size: 1, 4
+    canvas:
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+<PongGame>:
+    ball: pong_ball
+    agent: agent
+    
+    PongBall:
+        id: pong_ball
+        center: self.parent.center
+        
+    PongPaddle:
+        id: agent
+        x: root.x
+        center_y: root.center_y
