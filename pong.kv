@@ -17,6 +17,7 @@
 <PongGame>:
     ball: pong_ball
     agent: agent
+    player: player
     
     PongBall:
         id: pong_ball
@@ -24,5 +25,10 @@
         
     PongPaddle:
         id: agent
+        x: root.x
+        center_y: root.center_y
+
+    PongPaddle:
+        id: player
         x: root.x
         center_y: root.center_y
