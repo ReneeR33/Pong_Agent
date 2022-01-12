@@ -24,8 +24,8 @@ AGENT_POSITION_X = - (int(PADDLE_SIZE_X / 2))
 SCALE = 32
 
 Config.set('graphics', 'resizable', True)
-Config.set('graphics', 'width', str(FIELD_SIZE_X * SCALE))
-Config.set('graphics', 'height', str(FIELD_SIZE_Y * SCALE + 1))
+Config.set('graphics', 'width', str((FIELD_SIZE_X + 1) * SCALE))
+Config.set('graphics', 'height', str((FIELD_SIZE_Y + 1) * SCALE))
 
 from kivy.core.window import Window
 
@@ -65,7 +65,7 @@ class PongGame(Widget):
         self.ball.size = (BALL_SIZE_X * SCALE, BALL_SIZE_Y * SCALE)
         self.agent.size = (PADDLE_SIZE_X * SCALE, PADDLE_SIZE_Y * SCALE)
 
-        self.state = (1, (10, 3), BallDirection.L_U)
+        self.state = (3, (10, 3), BallDirection.L_D)
         self.initialize_utilities()
 
         print('initialized utilities')
@@ -97,7 +97,7 @@ class PongGame(Widget):
         P_A, P_B, D_B = s
         P_B_x, P_B_y = P_B
 
-        if P_B_x == 0 or P_B_x == FIELD_SIZE_X or self.collides(P_A, P_B):
+        if P_B_x == 0 or P_B_x == FIELD_SIZE_X:
             return None
 
         P_A_next = P_A
@@ -108,32 +108,42 @@ class PongGame(Widget):
             if P_A < FIELD_SIZE_Y:
                 P_A_next = P_A + 1
 
+        P_B_next, D_B_next = self.move_ball(P_A_next, P_B, D_B)
+
+        next_state = (P_A_next, P_B_next, D_B_next)
+        return next_state
+
+    def move_ball(self, P_A, P_B, D_B):
+        P_B_x, P_B_y = P_B
+
         P_B_x_next = P_B_x
         P_B_y_next = P_B_y
+        D_B_next = D_B
 
-        if D_B == BallDirection.L_D:
+        if self.collides(P_A, (P_B_x_next, P_B_y_next)):
+            D_B_next = self.bounce_ball(D_B, Surface.VERTICAL)
+
+        if P_B_y_next == 0 or P_B_y_next == FIELD_SIZE_Y:
+            D_B_next = self.bounce_ball(D_B, Surface.HORIZONTAL)
+
+        if D_B_next == BallDirection.L_D:
             P_B_y_next = P_B_y - 1
             P_B_x_next = P_B_x - 1
-        elif D_B == BallDirection.L_U:
+        elif D_B_next == BallDirection.L_U:
             P_B_y_next = P_B_y + 1
             P_B_x_next = P_B_x - 1
-        elif D_B == BallDirection.R_D:
+        elif D_B_next == BallDirection.R_D:
             P_B_y_next = P_B_y - 1
             P_B_x_next = P_B_x + 1
         else:
             P_B_y_next = P_B_y + 1
             P_B_x_next = P_B_x + 1
 
-        D_B_next = D_B
-        if P_B_y_next < 0 or P_B_y_next > FIELD_SIZE_Y:
-            D_B_next = self.bounce_ball(D_B, Surface.HORIZONTAL)
-            if P_B_y_next < 0:
-                P_B_y_next = 1
-            else:
-                P_B_y_next = FIELD_SIZE_Y - 1
+        if P_B_x_next < 0 or P_B_x_next > FIELD_SIZE_X or P_B_y_next < 0 or P_B_y_next > FIELD_SIZE_Y:
+            P_B_x_next = P_B_x
+            P_B_y_next = P_B_y
 
-        next_state = (P_A_next, (P_B_x_next, P_B_y_next), D_B_next)
-        return next_state
+        return ((P_B_x_next, P_B_y_next), D_B_next)
 
     def get_next_action(self, s):
         best_action = None
@@ -161,6 +171,8 @@ class PongGame(Widget):
 
                 self.ball.pos = ((ball_pos_x - int(BALL_SIZE_X / 2)) * SCALE, (ball_pos_y - int(BALL_SIZE_Y / 2)) * SCALE)
                 self.agent.pos = (AGENT_POSITION_X * SCALE, (P_A - int(PADDLE_SIZE_Y / 2)) * SCALE)
+        
+        print(self.state)
 
     def reward(self, s):
         _, P_B, _ = s
