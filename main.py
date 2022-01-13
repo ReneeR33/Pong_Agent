@@ -58,6 +58,8 @@ class PongGame(Widget):
     agent = ObjectProperty(None)
     player = ObjectProperty(None)
 
+    print = False
+
     player_movement = Action.IDLE
 
     def __init__(self, **kwargs):
@@ -67,7 +69,7 @@ class PongGame(Widget):
         self.agent.size = (PADDLE_SIZE_X * SCALE, PADDLE_SIZE_Y * SCALE)
         self.player.size = (PADDLE_SIZE_X * SCALE, PADDLE_SIZE_Y * SCALE)
 
-        self.state = (6, 3, (10, 3), BallDirection.L_D)
+        self.state = (2, 2, (7, 9), BallDirection.R_D)
         self.initialize_utilities()
 
         print('initialized utilities')
@@ -126,10 +128,16 @@ class PongGame(Widget):
         D_B_next = D_B
 
         if self.collides(P_A, P_P, (P_B_x_next, P_B_y_next)):
-            D_B_next = self.bounce_ball(D_B, Surface.VERTICAL)
+            D_B_next = self.bounce_ball(D_B_next, Surface.VERTICAL)
+            if self.print == True:
+                print('collides paddle')
+                print(D_B_next)
 
         if P_B_y_next == 0 or P_B_y_next == FIELD_SIZE_Y:
-            D_B_next = self.bounce_ball(D_B, Surface.HORIZONTAL)
+            D_B_next = self.bounce_ball(D_B_next, Surface.HORIZONTAL)
+            if self.print == True:
+                print('collides top or bottom')
+                print(D_B_next)
 
         if D_B_next == BallDirection.L_D:
             P_B_y_next = P_B_y - 1
@@ -169,6 +177,7 @@ class PongGame(Widget):
         # agent_action = Action.IDLE
 
         if agent_action != None:
+            self.print = True
             self.state = self.get_next_state(self.state, agent_action)
             if self.state != None:
                 P_A, P_P, P_B, _ = self.state
@@ -177,6 +186,8 @@ class PongGame(Widget):
                 self.ball.pos = ((ball_pos_x - int(BALL_SIZE_X / 2)) * SCALE, (ball_pos_y - int(BALL_SIZE_Y / 2)) * SCALE)
                 self.agent.pos = (AGENT_POSITION_X * SCALE, (P_A - int(PADDLE_SIZE_Y / 2)) * SCALE)
                 self.player.pos = (PLAYER_POSITION_X * SCALE, (P_P - int(PADDLE_SIZE_Y / 2)) * SCALE)
+
+            self.print = False
         
         print(self.state)
 
