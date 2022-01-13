@@ -8,7 +8,7 @@ from kivy.vector import Vector
 from kivy.clock import Clock
 from kivy.config import Config
 from enum import Enum
-import math
+import random
 
 FIELD_SIZE_X = 15
 FIELD_SIZE_Y = 11
@@ -69,8 +69,8 @@ class PongGame(Widget):
         self.agent.size = (PADDLE_SIZE_X * SCALE, PADDLE_SIZE_Y * SCALE)
         self.player.size = (PADDLE_SIZE_X * SCALE, PADDLE_SIZE_Y * SCALE)
 
-        self.state = (2, 2, (7, 9), BallDirection.R_D)
         self.initialize_utilities()
+        self.initialize_state()
 
         print('initialized utilities')
         print(len(self.utilities))
@@ -89,6 +89,15 @@ class PongGame(Widget):
                     for P_B_y in range(FIELD_SIZE_Y + 1):
                         for D_B in range(4):
                             self.utilities[(P_A, P_P, (P_B_x, P_B_y), BallDirection(D_B))] = 0.0
+
+    def initialize_state(self):
+        P_A = random.randint(0, FIELD_SIZE_Y)
+        P_P = random.randint(0, FIELD_SIZE_Y)
+        P_B_x = random.randint(4, FIELD_SIZE_X - 4)
+        P_B_y = random.randint(0, FIELD_SIZE_Y)
+        D_B = BallDirection(random.randint(0, 3))
+
+        self.state = (P_A, P_P, (P_B_x, P_B_y), D_B)
 
     def collides(self, P_A, P_P, P_B):
         P_B_x, P_B_y = P_B
@@ -117,9 +126,11 @@ class PongGame(Widget):
     def get_next_states(self, s, a_a):
         next_states = []
 
-        next_state = self.get_next_state(s, a_a, Action.IDLE)
-        if next_state != None:
-            next_states.append((1, next_state))
+        for a in range(3):
+            next_state = self.get_next_state(s, a_a, Action(a))
+            if next_state == None:
+                return []
+            next_states.append((1 / 3, next_state))
 
         return next_states
 
@@ -182,7 +193,7 @@ class PongGame(Widget):
                 utility = 0.0
                 for p, next_state in next_states:
                     utility = utility + p * self.utilities[next_state]
-                if best_action == None or utility > best_utility:
+                if best_action == None or utility >= best_utility:
                     best_action = Action(a)
                     best_utility = utility
 
@@ -198,11 +209,12 @@ class PongGame(Widget):
             self.player.pos = (PLAYER_POSITION_X * SCALE, (P_P - int(PADDLE_SIZE_Y / 2)) * SCALE)
 
             agent_action = self.get_next_action(self.state)
-            # n = random.randint(0, 2)
-            # player_action = Action(n)
-            player_action = Action.IDLE
+            n = random.randint(0, 2)
+            player_action = Action(n)
 
             self.state = self.get_next_state(self.state, agent_action, player_action)
+        else:
+            self.initialize_state()
         
         print(self.state)
 
