@@ -117,13 +117,9 @@ class PongGame(Widget):
     def get_next_states(self, s, a_a):
         next_states = []
 
-        for i in range(3):
-            a_p = Action(i)
-            next_state = self.get_next_state(s, a_a, a_p)
-            if next_state == None:
-                return []
-            else:
-                next_states.append((1 / 3, next_state))
+        next_state = self.get_next_state(s, a_a, Action.IDLE)
+        if next_state != None:
+            next_states.append((1, next_state))
 
         return next_states
 
@@ -196,8 +192,9 @@ class PongGame(Widget):
             self.player.pos = (PLAYER_POSITION_X * SCALE, (P_P - int(PADDLE_SIZE_Y / 2)) * SCALE)
 
             agent_action = self.get_next_action(self.state)
-            n = random.randint(0, 2)
-            player_action = Action(n)
+            # n = random.randint(0, 2)
+            # player_action = Action(n)
+            player_action = Action.IDLE
 
             self.state = self.get_next_state(self.state, agent_action, player_action)
         else:
