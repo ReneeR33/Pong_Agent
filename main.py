@@ -58,8 +58,6 @@ class PongGame(Widget):
     agent = ObjectProperty(None)
     player = ObjectProperty(None)
 
-    print = False
-
     player_movement = Action.IDLE
 
     def __init__(self, **kwargs):
@@ -154,15 +152,9 @@ class PongGame(Widget):
 
         if self.collides(P_A, P_P, (P_B_x_next, P_B_y_next)):
             D_B_next = self.bounce_ball(D_B_next, Surface.VERTICAL)
-            if self.print == True:
-                print('collides paddle')
-                print(D_B_next)
 
         if P_B_y_next == 0 or P_B_y_next == FIELD_SIZE_Y:
             D_B_next = self.bounce_ball(D_B_next, Surface.HORIZONTAL)
-            if self.print == True:
-                print('collides top or bottom')
-                print(D_B_next)
 
         if D_B_next == BallDirection.L_D:
             P_B_y_next = P_B_y - 1
