@@ -1,3 +1,4 @@
+from ctypes.wintypes import SC_HANDLE
 from os import stat
 from kivy.app import App
 from kivy.uix.widget import Widget
@@ -67,26 +68,27 @@ class PongGame(Widget):
         self.agent.size = (PADDLE_SIZE_X * SCALE, PADDLE_SIZE_Y * SCALE)
         self.player.size = (PADDLE_SIZE_X * SCALE, PADDLE_SIZE_Y * SCALE)
 
-        self.initialize_utilities()
+        self.initialize_states()
+        self.initialize_policy()
         self.initialize_state()
 
-        print('initialized utilities')
-        print(len(self.utilities))
+        self.policy_iteration(0.8)
 
-        print('starting value iteration')
-        for i in range(50):
-            self.value_iteration(0.8)
-        print('value iteration done')
-
-    def initialize_utilities(self):
-        self.utilities = {}
+    def initialize_states(self):
+        self.states = []
 
         for P_A in range(FIELD_SIZE_Y + 1):
             for P_P in range(FIELD_SIZE_Y + 1):
                 for P_B_x in range(FIELD_SIZE_X + 1):
                     for P_B_y in range(FIELD_SIZE_Y + 1):
                         for D_B in range(4):
-                            self.utilities[(P_A, P_P, (P_B_x, P_B_y), BallDirection(D_B))] = 0.0
+                            self.states.append((P_A, P_P, (P_B_x, P_B_y), BallDirection(D_B)))
+
+    def initialize_policy(self):
+        self.policy = {}
+
+        for s in self.states:
+            self.policy[s] = Action.IDLE
 
     def initialize_state(self):
         P_A = random.randint(0, FIELD_SIZE_Y)
@@ -175,22 +177,6 @@ class PongGame(Widget):
 
         return ((P_B_x_next, P_B_y_next), D_B_next)
 
-    def get_next_action(self, s):
-        best_action = None
-        best_utility = None
-
-        for a in range(3):
-            next_states = self.get_next_states(s, Action(a))
-            if len(next_states) != None:
-                utility = 0.0
-                for p, next_state in next_states:
-                    utility = utility + p * self.utilities[next_state]
-                if best_action == None or utility >= best_utility:
-                    best_action = Action(a)
-                    best_utility = utility
-
-        return best_action
-
     def update(self, dt):
         if self.state != None:
             P_A, P_P, P_B, _ = self.state
@@ -200,7 +186,7 @@ class PongGame(Widget):
             self.agent.pos = (AGENT_POSITION_X * SCALE, (P_A - int(PADDLE_SIZE_Y / 2)) * SCALE)
             self.player.pos = (PLAYER_POSITION_X * SCALE, (P_P - int(PADDLE_SIZE_Y / 2)) * SCALE)
 
-            agent_action = self.get_next_action(self.state)
+            agent_action = self.policy[self.state]
             n = random.randint(0, 2)
             player_action = Action(n)
 
@@ -219,21 +205,56 @@ class PongGame(Widget):
 
         return 0
 
-    def value_iteration(self, g):
-        for s in self.utilities:
+    def q_value(self, s, a, U, g):
+        next_states = self.get_next_states(s, a)
+
+        if len(next_states) == 0:
+            return self.reward(s)
+        
+        result = 0.0
+        for p, next_state in next_states:
+            result = result + p * (self.reward(next_state) + g * U[next_state])
+        return result
+
+    def update_utilities(self, U, g):
+        for s in self.states:
             utilities = []
             for a in range(3):
-                utility = 0.0
-                next_states = self.get_next_states(s, Action(a))
+                utilities.append(self.q_value(s, Action(a), U, g))
 
-                if len(next_states) == 0:
-                    utilities.append(self.reward(s))
-                else:
-                    for p, next_state in next_states:
-                        utility = utility + p * (self.reward(next_state) + g * self.utilities[next_state])
-                    utilities.append(utility)
+            U[s] = max(utilities)
 
-            self.utilities[s] = max(utilities)
+    def policy_iteration(self, g):
+        changed = True
+        iteration = 0
+
+        utilities = {}
+        for s in self.states:
+            utilities[s] = 0.0
+
+        while changed:
+            changed_count = 0
+            iteration = iteration + 1
+            changed = False
+
+            self.update_utilities(utilities, g)
+
+            for s in self.states:
+                best_q_value = 0.0
+                best_action = None
+
+                for a in range(3):
+                    q_value = self.q_value(s, Action(a), utilities, g)
+                    if best_action == None or q_value >= best_q_value:
+                        best_q_value = q_value
+                        best_action = Action(a)
+                
+                if best_q_value > self.q_value(s, self.policy[s], utilities, g):
+                    self.policy[s] = best_action
+                    changed = True
+                    changed_count = changed_count + 1
+
+            print('{}: changed: {}'.format(iteration, changed_count))
 
     def bounce_ball(self, D_B, surface):
         D_B_next = D_B
