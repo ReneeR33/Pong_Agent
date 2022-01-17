@@ -63,7 +63,7 @@ class PongGame(Widget):
         print(len(self.utilities))
 
         print('starting value iteration')
-        for i in range(50):
+        for i in range(20):
            self.value_iteration(0.8)
         print('value iteration done')
 
